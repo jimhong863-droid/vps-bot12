@@ -1,10 +1,10 @@
 #!/bin/bash
-TOKEN="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"
+read -sp "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: " T; echo
 U="jimhong863-droid"
 R="vps-bot12"
 
 rm -rf /tmp/$R
-git clone https://$U:$TOKEN@github.com/$U/$R.git /tmp/$R -q
+git clone https://$U:$T@github.com/$U/$R.git /tmp/$R -q
 cd /tmp/$R || exit
 mkdir -p .github/workflows
 
@@ -39,4 +39,5 @@ EOF
 git add .
 git -c user.email=b@b -c user.name=b commit -qm "vps workflow"
 git push origin main -q
+unset T
 echo "✅ DONE → github.com/$U/$R"
