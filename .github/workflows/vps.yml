@@ -1,43 +1,65 @@
-#!/bin/bash
-read -sp "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: " T; echo
-U="jimhong863-droid"
-R="vps-bot12"
+name: 🆓 FREE VPS - YANZZ
+on:
+  workflow_dispatch:
 
-rm -rf /tmp/$R
-git clone https://$U:$T@github.com/$U/$R.git /tmp/$R -q
-cd /tmp/$R || exit
-mkdir -p .github/workflows
-
-cat > .github/workflows/vps.yml <<'EOF'
-name: VPS
-on: { workflow_dispatch: {} }
 jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 360
     steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt update && sudo apt install -y tmate curl
-      - run: echo "root:Yanzz123" | sudo chpasswd
-      - run: |
-          curl -sSL https://resource.1panel.hk/quick_start.sh | sudo bash -s -- --yes || true
-          sudo 1pctl update password Yanzz123 2>/dev/null || true
-          sudo 1pctl update username admin 2>/dev/null || true
-      - run: |
-          curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cf
-          chmod +x cf && sudo mv cf /usr/local/bin/cloudflared
-          nohup cloudflared tunnel --url http://localhost:8090 > tunnel.log 2>&1 &
-          sleep 8 && cat tunnel.log
-      - run: |
-          echo "ROOT : Yanzz123"
-          echo "PANEL: admin / Yanzz123"
-      - uses: mxschmitt/action-tmate@v3
-        with: { limit-access-to-actor: false }
-      - run: while true; do sleep 300; done
-EOF
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
-git add .
-git -c user.email=b@b -c user.name=b commit -qm "vps workflow"
-git push origin main -q
-unset T
-echo "✅ DONE → github.com/$U/$R"
+      - name: Install dependency dasar
+        run: |
+          sudo apt update -y
+          sudo apt install -y tmate curl wget git sudo openssh-server
+
+      - name: Set password root = Yanzz123
+        run: |
+          echo "root:Yanzz123" | sudo chpasswd
+          sudo sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
+          sudo sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+          sudo service ssh restart || true
+
+      - name: Install 1Panel
+        run: |
+          curl -sSL https://resource.1panel.hk/quick_start.sh -o ip.sh
+          sudo bash ip.sh --yes || true
+          sudo 1pctl update username admin 2>/dev/null || true
+          sudo 1pctl update password Yanzz123 2>/dev/null || \
+            sudo 1pctl reset password Yanzz123 2>/dev/null || true
+
+      - name: Install Cloudflared
+        run: |
+          curl -L -o cf https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+          chmod +x cf && sudo mv cf /usr/local/bin/cloudflared
+
+      - name: Jalanin tunnel ke panel
+        run: |
+          nohup cloudflared tunnel --url http://localhost:8090 > tunnel.log 2>&1 &
+          sleep 10
+          echo "=== TUNNEL URL ==="
+          grep -oE 'https://[a-zA-Z0-9.-]+\.trycloudflare\.com' tunnel.log | head -1
+
+      - name: Print info login
+        run: |
+          echo "===================================="
+          echo "  ✅ VPS SIAP DIPAKE"
+          echo "===================================="
+          echo "  ROOT  : root / Yanzz123"
+          echo "  PANEL : admin / Yanzz123"
+          echo "  PORT  : 8090"
+          echo "===================================="
+
+      - name: Buka SSH (tmate)
+        uses: mxschmitt/action-tmate@v3
+        with:
+          limit-access-to-actor: false
+
+      - name: Keep alive 6 jam
+        run: |
+          while true; do
+            echo "🟢 VPS hidup - $(date)"
+            sleep 300
+          done
