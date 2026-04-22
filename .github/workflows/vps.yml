@@ -1,4 +1,4 @@
-name: 🆓 FREE VPS - YANZZ
+name: 🚀 FAST VPS - YANZZ
 on:
   workflow_dispatch:
 
@@ -7,52 +7,58 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 360
     steps:
-      - name: Checkout repo
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install dependency dasar
-        run: |
-          sudo apt update -y
-          sudo apt install -y tmate curl wget git sudo openssh-server
-
-      - name: Set password root = Yanzz123
+      - name: Set root password = Yanzz123
         run: |
           echo "root:Yanzz123" | sudo chpasswd
-          sudo sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
-          sudo sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+          sudo sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config || true
+          sudo sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config || true
           sudo service ssh restart || true
 
-      - name: Install 1Panel
+      - name: Install dependency cepet (tmate + curl + cloudflared)
         run: |
-          curl -sSL https://resource.1panel.hk/quick_start.sh -o ip.sh
-          sudo bash ip.sh --yes || true
-          sudo 1pctl update username admin 2>/dev/null || true
-          sudo 1pctl update password Yanzz123 2>/dev/null || \
-            sudo 1pctl reset password Yanzz123 2>/dev/null || true
-
-      - name: Install Cloudflared
-        run: |
+          sudo apt update -y
+          sudo apt install -y tmate curl wget git
           curl -L -o cf https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
           chmod +x cf && sudo mv cf /usr/local/bin/cloudflared
+          echo "✅ Dependency dasar selesai"
 
-      - name: Jalanin tunnel ke panel
+      - name: Install 1Panel + Cloudflare Tunnel di background
         run: |
-          nohup cloudflared tunnel --url http://localhost:8090 > tunnel.log 2>&1 &
-          sleep 10
-          echo "=== TUNNEL URL ==="
-          grep -oE 'https://[a-zA-Z0-9.-]+\.trycloudflare\.com' tunnel.log | head -1
+          nohup bash -c '
+            echo "▶ Install 1Panel mulai..."
+            curl -sSL https://resource.1panel.hk/quick_start.sh -o /tmp/ip.sh
+            sudo bash /tmp/ip.sh --yes
+            sudo 1pctl update username admin 2>/dev/null || true
+            sudo 1pctl update password Yanzz123 2>/dev/null || \
+              sudo 1pctl reset password Yanzz123 2>/dev/null || true
+            echo "▶ 1Panel selesai, jalanin tunnel..."
+            nohup cloudflared tunnel --url http://localhost:8090 > /tmp/tunnel.log 2>&1 &
+            sleep 10
+            echo "=== TUNNEL URL ==="
+            grep -oE "https://[a-zA-Z0-9.-]+\.trycloudflare\.com" /tmp/tunnel.log | head -1
+          ' > /tmp/install.log 2>&1 &
+          disown
+          echo "✅ Background install jalan, SSH siap dipake sekarang"
 
       - name: Print info login
         run: |
-          echo "===================================="
-          echo "  ✅ VPS SIAP DIPAKE"
-          echo "===================================="
+          echo "============================================="
+          echo "  ✅ VPS AKTIF — info login di bawah"
+          echo "============================================="
           echo "  ROOT  : root / Yanzz123"
           echo "  PANEL : admin / Yanzz123"
           echo "  PORT  : 8090"
-          echo "===================================="
+          echo "  PANEL_USER=admin"
+          echo "  PANEL_PASS=Yanzz123"
+          echo "============================================="
+          echo "  Catatan: panel butuh ~5-7 menit lagi siap"
+          echo "  cek tunnel URL di /tmp/tunnel.log"
+          echo "============================================="
 
-      - name: Buka SSH (tmate)
+      - name: Buka SSH (tmate) — langsung siap
         uses: mxschmitt/action-tmate@v3
         with:
           limit-access-to-actor: false
