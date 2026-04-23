@@ -50,12 +50,27 @@ jobs:
           sudo systemctl status nginx --no-pager | head -5
           curl -sI http://localhost | head -3
 
-      - name: Install Docker (opsional)
+      - name: Verifikasi Docker (sudah preinstalled di runner)
         if: ${{ github.event.inputs.install_docker == 'true' }}
         run: |
-          sudo apt-get install -y docker.io
-          sudo systemctl enable --now docker
-          docker --version
+          if command -v docker >/dev/null 2>&1; then
+            echo "Docker sudah terpasang di runner."
+            docker --version
+            sudo systemctl start docker 2>/dev/null || sudo service docker start || true
+            sudo docker info | head -10 || true
+          else
+            echo "Docker tidak ditemukan, install via repo resmi..."
+            sudo install -m 0755 -d /etc/apt/keyrings
+            curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+            sudo chmod a+r /etc/apt/keyrings/docker.gpg
+            . /etc/os-release
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/${ID} ${VERSION_CODENAME} stable" \
+              | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
+            sudo apt-get update -y
+            sudo apt-get install -y docker-ce docker-ce-cli docker-buildx-plugin docker-compose-plugin
+            sudo systemctl enable --now docker
+            docker --version
+          fi
 
       - name: Expose Nginx ke internet (cloudflared tunnel)
         run: |
