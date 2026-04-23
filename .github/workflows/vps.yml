@@ -1,51 +1,104 @@
-name: ⚡ FAST VPS
+name: Free VPS (Runner 2vCPU 7GB)
+
 on:
   workflow_dispatch:
     inputs:
-      duration:
-        description: 'Durasi (jam)'
-        default: '6'
-        required: false
+      duration_minutes:
+        description: "Berapa menit VPS hidup (max 350 = ~5 jam 50 menit)"
+        required: true
+        default: "300"
+      install_docker:
+        description: "Install Docker?"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
 jobs:
-  build:
+  vps:
+    name: Free VPS (Nginx + SSH via tmate)
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 355
+
     steps:
-      - name: Set root password
-        run: echo "root:Yanzz123" | sudo chpasswd
-
-      - name: Install tmate
-        run: sudo DEBIAN_FRONTEND=noninteractive apt install -y --no-install-recommends tmate
-
-      - name: Install panel + tunnel di background
+      - name: Info spek runner
         run: |
-          nohup bash -c '
-            curl -sSL https://resource.1panel.hk/quick_start.sh | sudo bash -s -- --yes
-            sudo 1pctl update username admin
-            sudo 1pctl update password Yanzz123 || sudo 1pctl reset password Yanzz123
-            curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /tmp/cf
-            chmod +x /tmp/cf && sudo mv /tmp/cf /usr/local/bin/cloudflared
-            nohup cloudflared tunnel --url http://localhost:8090 > /tmp/tunnel.log 2>&1 &
-          ' > /tmp/bg.log 2>&1 &
-          disown
-          echo "✅ ROOT: root / Yanzz123"
-          echo "PANEL_USER=admin"
-          echo "PANEL_PASS=Yanzz123"
+          echo "==> CPU"
+          nproc
+          lscpu | grep -E 'Model name|CPU\(s\)' | head
+          echo "==> RAM"
+          free -h
+          echo "==> Disk"
+          df -h /
 
-      - name: SSH tmate
+      - name: Install Nginx
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y nginx
+          sudo tee /var/www/html/index.html >/dev/null <<'HTML'
+          <!doctype html>
+          <html lang="id">
+          <head><meta charset="utf-8"><title>Free VPS</title></head>
+          <body style="font-family:sans-serif;max-width:640px;margin:4rem auto;padding:0 1rem">
+            <h1>Nginx aktif di runner GitHub Actions</h1>
+            <p>2 vCPU · 7 GB RAM · gratis.</p>
+          </body></html>
+          HTML
+          sudo systemctl enable --now nginx
+          sudo systemctl status nginx --no-pager | head -5
+          curl -sI http://localhost | head -3
+
+      - name: Install Docker (opsional)
+        if: ${{ github.event.inputs.install_docker == 'true' }}
+        run: |
+          sudo apt-get install -y docker.io
+          sudo systemctl enable --now docker
+          docker --version
+
+      - name: Expose Nginx ke internet (cloudflared tunnel)
+        run: |
+          curl -L --output cloudflared.deb \
+            https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+          sudo dpkg -i cloudflared.deb
+          nohup cloudflared tunnel --url http://localhost:80 \
+            --no-autoupdate > /tmp/cloudflared.log 2>&1 &
+          sleep 8
+          echo "==> URL publik Nginx (dari log cloudflared):"
+          grep -Eo 'https://[a-z0-9-]+\.trycloudflare\.com' /tmp/cloudflared.log | head -1 || cat /tmp/cloudflared.log
+
+      - name: Buka SSH session via tmate (akses dari Termux)
         uses: mxschmitt/action-tmate@v3
         with:
-          limit-access-to-actor: false
+          limit-access-to-actor: true
+          detached: true
 
-      - name: Keep alive sesuai durasi
+      - name: Tahan VPS tetap hidup
         run: |
-          DUR=${{ github.event.inputs.duration }}
-          DUR=${DUR:-6}
-          SECS=$((DUR * 3600))
-          echo "⏳ VPS akan hidup selama $DUR jam"
-          end=$(( $(date +%s) + SECS ))
-          while [ $(date +%s) -lt $end ]; do
-            echo "🟢 alive - $(date) - sisa $((end - $(date +%s)))s"
-            sleep 300
+          MIN="${{ github.event.inputs.duration_minutes }}"
+          if [ "$MIN" -gt 350 ]; then MIN=350; fi
+          echo "VPS akan hidup $MIN menit."
+          echo ""
+          echo "==> Cara konek dari Termux:"
+          echo "1. Scroll log step 'tmate' di atas — cari baris:"
+          echo "   SSH: ssh xxxxxxxx@nyc1.tmate.io"
+          echo "2. Di Termux jalanin: pkg install openssh -y"
+          echo "3. Lalu paste perintah ssh-nya."
+          echo ""
+          for i in $(seq 1 "$MIN"); do
+            sleep 60
+            echo "[$i/$MIN menit] VPS masih hidup — $(date -u +%H:%M:%S)"
           done
-          echo "⏰ Durasi habis, mati otomatis"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Free VPS selesai"
+            echo ""
+            echo "- Spek: 2 vCPU, 7 GB RAM, 14 GB SSD"
+            echo "- Nginx: aktif di port 80"
+            echo "- Akses SSH: lihat log step *tmate* di run ini"
+            echo "- URL publik Nginx: lihat log step *cloudflared*"
+          } >> "$GITHUB_STEP_SUMMARY"
