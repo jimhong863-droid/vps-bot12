@@ -86,7 +86,7 @@ jobs:
       - name: Buka SSH session via tmate (akses dari Termux)
         uses: mxschmitt/action-tmate@v3
         with:
-          limit-access-to-actor: true
+          limit-access-to-actor: false
           detached: true
 
       - name: Tahan VPS tetap hidup
